@@ -12,6 +12,9 @@ Created:
 import itertools
 
 from pydub import AudioSegment
+import click
+import os
+from alive_progress import alive_it
 
 
 # Opens the fp and parses the content in this format: HH:MM Title, storing it into a list of tuples
@@ -34,17 +37,26 @@ def parse_file(file):
     return res
 
 
-if __name__ == '__main__':
+@click.command()
+@click.option('--file', '-f', help='The timestamp file to parse', required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option('--input', '-i', help='The input file', required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option('--output', '-o', help='The output folder', required=True, type=click.Path(file_okay=False))
+def main(file, input, output):
     # Parse the file
-    titles = parse_file('timestamps.txt')
+    titles = parse_file(file)
     # Open the audio file
-    sound = AudioSegment.from_mp3("audio.mp3")
+    sound = AudioSegment.from_wav(input)
 
     a, b = itertools.tee([t[0] for t in titles])
     next(b, None)
     timestamps = zip(a, b)
 
-    for i, t in enumerate(timestamps):
-        audio = sound[t[0]:t[1]]
-        audio.export(f'output/{i + 1:03}. {titles[i][1]}.mp3', format='mp3')
+    os.mkdir(output) if not os.path.exists(output) else None
 
+    for i, t in alive_it(list(enumerate(timestamps))):
+        audio = sound[t[0]:t[1]]
+        audio.export(f'{output}/{i + 1:03}. {titles[i][1]}.mp3', format='mp3')
+
+
+if __name__ == '__main__':
+    main()
