@@ -12,6 +12,7 @@ Created:
 import itertools
 
 from pydub import AudioSegment
+from pydub.silence import detect_silence
 import click
 import os
 from alive_progress import alive_it
@@ -37,6 +38,17 @@ def parse_file(file):
     return res
 
 
+def accurate_timestamps(timestamps, sound):
+    for ml, title in timestamps:
+        split = sound[ml - 500:ml + 500]
+        silences = detect_silence(split, min_silence_len=100, silence_thresh=-50)
+        if len(silences) == 0:
+            continue
+        else:
+            timestamps[timestamps.index((ml, title))] = (ml - 500 + (silences[0][0] + silences[0][1])/2, title)
+    return timestamps
+
+
 @click.command()
 @click.option('--file', '-f', help='The timestamp file to parse', required=True, type=click.Path(exists=True, dir_okay=False))
 @click.option('--input', '-i', help='The input file', required=True, type=click.Path(exists=True, dir_okay=False))
@@ -46,6 +58,8 @@ def main(file, input, output):
     titles = parse_file(file)
     # Open the audio file
     sound = AudioSegment.from_wav(input)
+
+    titles = accurate_timestamps(titles, sound)
 
     a, b = itertools.tee([t[0] for t in titles])
     next(b, None)
